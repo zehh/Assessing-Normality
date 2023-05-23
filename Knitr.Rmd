@@ -1,0 +1,183 @@
+---
+title: "Assessing Normality"
+author: "Pedro Henrique Brant"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+Hello Witches and Wizards, :male_mage:
+
+In the initial posts for this thread, my colleagues aptly described the *formal* and *informal* ways with which we can assess for **normality**. In this post, I'd like to add to the discussion by showing examples of how this can be done in practice using the R programming language.
+
+In order for us to start, it's first important to generate a normal distribution and a non-normal distribution.
+
+```{r}
+## as we're going to deal with random numbers, setting the seed ensures
+## that results are reproducible
+set.seed(123)
+## the rnorm function has the arguments n, mean and sd
+## when mean and sd aren't specified, the default values are 0 and 1
+## which are the ones we're going to use here
+samplesize <- 1000
+normal <- rnorm(samplesize)
+## let's see what the distribution looks like
+head(normal, 100)
+```
+
+```{r, message = FALSE, warning = FALSE}
+## now let's generate a skewed distribution
+## baseR doesn't have a function that does it by itself, so let's use a package
+require(fGarch)
+## rsnorm has the arguments n, mean, sd and xi (skewness)
+## the defaults are mean = 0, sd = 1, xi = 1, which we're going to use
+skewed <- rsnorm (samplesize)
+## let's see what skewed looks like
+head(skewed,100)
+```
+
+Looking at the numbers alone, it's almost impossible to differentiate the two.
+
+So, now that we have generated both distributions, let's start with exploratory data analysis which will also serve as our **informal** assessment of normality.
+
+```{r, echo=FALSE}
+
+# Multiple plot function
+#
+# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
+# - cols:   Number of columns in layout
+# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
+#
+# If the layout is something like matrix(c(1,2,3,3), nrow=2, byrow=TRUE),
+# then plot 1 will go in the upper left, 2 will go in the upper right, and
+# 3 will go all the way across the bottom.
+#
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+
+```
+
+```{r, message=FALSE, warning=FALSE}
+## let's load the packages that we will use in the informal analysis
+require(tidyverse)
+## we will create multiple plots and then plot them all in a single page.
+
+## the ggplot function allows us to plot data
+## it takes a data frame as argument and needs aesthetics to be set.
+
+## in order to convert our numeric vectors into data frames, we're using the
+## as.data.frame function and we're setting the aesthetics with the aes
+## function.
+
+## our first plot is going to be a histogram
+## after defining our data and our aesthetics, we're then adding 
+## the histogram geom to finish the plot, establishing the 
+## number of bins as the rounded up value of the square root of the sample size
+
+p1 <- ggplot(as.data.frame(normal), aes(x=normal)) + geom_histogram(bins = ceiling(sqrt(samplesize)))
+
+## next is a Q-Q plot
+p2 <- ggplot(as.data.frame(normal), aes(sample = normal)) + geom_qq() + geom_qq_line()
+
+## next is a density plot
+
+p3 <- ggplot(as.data.frame(normal), aes(x = normal)) + geom_density()
+
+## we will now do the same three plots for our skewed distribution
+
+p4 <- ggplot(as.data.frame(skewed), aes(x=skewed)) + geom_histogram(bins = ceiling(sqrt(samplesize)))
+
+p5 <- ggplot(as.data.frame(skewed), aes(sample = skewed)) + geom_qq() + geom_qq_line()
+
+p6 <- ggplot(as.data.frame(skewed), aes(x = skewed)) + geom_density()
+## multiplot is not a standard function in R, being defined by
+## Winston Chang [1]
+multiplot(p1,p2,p3,p4,p5,p6, cols = 2)
+```
+
+Our **informal** assessment of the distributions seems to reveal the first distribution as being normal, while the second one isn't.
+
+Let's proceed with the **formal** assessment (which is a lot more simple in the code side of things).
+
+```{r}
+## There is a function in R for the Shapiro-Wilk test, which we're 
+## going to use, its name is shapiro.test and its only argument is
+## a numerical vector
+
+shapiro.test(normal)
+```
+The output above has a **p-value greater than 0.05**, this means that we cannot refute the null-hypothesis, therefore the distribution is normal.
+
+```{r}
+shapiro.test(skewed)
+```
+We can format the result of the p-value better for easier comprehension.
+
+```{r}
+format(shapiro.test(skewed)$p.value, scientific = FALSE)
+```
+With this, it is easy to see that the **p-value is smaller than 0.05**, therefore we can reject the null-hypothesis and conclude that this is **not** a normal distribution.
+
+In order to understand the importance of this, I will do the same experiment as done above but changing the samplesize variable to 50. I will omit the code as it will be repeated
+```{r}
+samplesize <- 150
+```
+
+```{r, echo = FALSE}
+normal <- rnorm(samplesize)
+skewed <- rsnorm (samplesize)
+p1 <- ggplot(as.data.frame(normal), aes(x=normal)) + geom_histogram(bins = ceiling(sqrt(samplesize)))
+p2 <- ggplot(as.data.frame(normal), aes(sample = normal)) + geom_qq() + geom_qq_line()
+p3 <- ggplot(as.data.frame(normal), aes(x = normal)) + geom_density()
+p4 <- ggplot(as.data.frame(skewed), aes(x=skewed)) + geom_histogram(bins = ceiling(sqrt(samplesize)))
+p5 <- ggplot(as.data.frame(skewed), aes(sample = skewed)) + geom_qq() + geom_qq_line()
+p6 <- ggplot(as.data.frame(skewed), aes(x = skewed)) + geom_density()
+multiplot(p1,p2,p3,p4,p5,p6, cols = 2)
+```
+
+The purpose of this exercise is to show how a small sample size can muddle the waters and make it harder to visually determine if the variables are normally distributed or not.
+
+Let's try the Shapiro-Wilk test and see what comes of it.
+
+```{r}
+shapiro.test(normal)
+shapiro.test(skewed)
+```
+
+Even with the visual inspection being compromised, the Shapiro-Wilk test still managed to determine the normal distribution as normal and the skewed as not normal. That might not always happen, though.
+
+### References:
+
+1. Chang, W. (n.d.). *R Cookbook.* Multiple graphs on one page (GGPLOT2). http://www.cookbook-r.com/Graphs/Multiple_graphs_on_one_page_(ggplot2)/ 
